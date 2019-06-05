@@ -1,6 +1,7 @@
 import re
+from pathlib import Path
 
-srex = re.compile(r"\\.*Sec([0-9]*)\[(.*)\]\{(.*)\}*")
+srex = re.compile(r"\\.{0,1}Sec([0-9]*)\[(.*)\]\{(.*)\}*")
 irex = re.compile(r"\\impldef\{(.*)\}*")
 
 def cpp_texlist(listoflines):
@@ -51,6 +52,18 @@ def cpp_texlist(listoflines):
 
     return value
 
+
+def parse_texfile(texfile):
+
+    texp = Path(texfile)
+    if not texp.exists():
+        print(f"{texfile} does not exist")
+        return []
+
+    tex_lines = open(texp).readlines()
+
+    return cpp_texlist(tex_lines)
+
 def collapse_sections(parsed_itemlist, filename, max_sections = 0):
     """ will return a list of impldef items which have the hierarchy of sections prefixed, for example
 
@@ -73,7 +86,11 @@ def collapse_sections(parsed_itemlist, filename, max_sections = 0):
         if not 'impldef' in item[-1].lower():
             sres = srex.search(item[-1])
             if sres:
-                lvl = int(sres.groups()[0])+1
+                try:
+                    lvl = int(sres.groups()[0])+1
+                except Exception as ex:
+                    print(f"unable to apply regex to {item}")
+                    raise
             else:
                 print(f"WARNING, skipping {item[-1]} due to failing {srex} unexpectedly")
                 continue
@@ -104,5 +121,19 @@ def collapse_sections(parsed_itemlist, filename, max_sections = 0):
             impldef.append(new_item)
 
             value.append(impldef)
+
+    return value
+
+def flatten(collapsed):
+
+    value = []
+
+    for item in collapsed:
+        new_item = []
+
+        for it in item:
+            new_item.extend(it)
+
+        value.append(new_item)
 
     return value

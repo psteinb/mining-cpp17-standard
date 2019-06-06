@@ -124,16 +124,32 @@ def collapse_sections(parsed_itemlist, filename, max_sections = 0):
 
     return value
 
-def flatten(collapsed):
+
+def flat_generator(lst):
+
+    for x in lst:
+
+        if isinstance(x, list) or isinstance(x, tuple):
+            for x in flat_generator(x):
+                yield x
+        else:
+            yield x
+
+
+def flatten(lst):
+
+    value = list(flat_generator(lst))
+
+    return value
+
+
+def flatten_items(lst):
 
     value = []
+    if not lst:
+        return value
 
-    for item in collapsed:
-        new_item = []
-
-        for it in item:
-            new_item.extend(it)
-
-        value.append(new_item)
+    for it in lst:
+        value.append(list(flat_generator(it)))
 
     return value

@@ -1,0 +1,84 @@
+---
+title: "Sqeazy Performance"
+output: 
+    html_document:
+        toc: true
+        toc_float: true
+        theme: cosmo
+        highlight: tango
+---
+
+```{r load_libs, echo=FALSE}
+library(dplyr, warn.conflicts=FALSE)
+library(ggplot2)
+library(tidyr)
+#library(lubridate, warn.conflicts=FALSE)
+library(ggthemes)
+
+mytheme = theme_bw(base_size=20)##  + theme(
+    ## ##text = element_text(family = "Decima WE", color = "grey20"),
+    ## ## strip.background = element_blank(),
+    ## ## strip.text = element_text(hjust = 0),
+    ## ## panel.grid.major = element_line(colour="grey50",size=0.35),
+    ## ## panel.grid.minor = element_blank(),
+    ## ## plot.margin=unit(c(0,1,0,1),"cm"),
+    ## legend.position="top",
+    ## plot.caption=element_text(hjust=1,size=14,colour="grey30"),
+    ## plot.subtitle=element_text(face="italic",size=14,colour="grey40"),
+    ## plot.title=element_text(size=18,face="bold")
+## )
+df = read.csv("../extracting_impldef/std.csv") %>%
+  separate(content_sec0,c("prefix_sec0","stem_sec0",NA,"title_sec0",NA),sep="[\\[\\]\\{\\}]+") %>%
+  separate(content_sec1,c("prefix_sec1","stem_sec1",NA,"title_sec1",NA),sep="[\\[\\]\\{\\}]+") %>%
+  separate(content_sec2,c("prefix_sec2","stem_sec2",NA,"title_sec2",NA),sep="[\\[\\]\\{\\}]+") %>%
+  separate(content_sec3,c("prefix_sec3","stem_sec3",NA,"title_sec3",NA),sep="[\\[\\]\\{\\}]+") 
+  
+
+levels123 = df  %>%
+  select(location_sec0,stem_sec0,
+         location_sec1,stem_sec1,
+         location_sec2,stem_sec2,
+         location_sec3,stem_sec3,
+         location_impldef,content_impldef) %>%
+  separate(location_impldef,c("file_impldef","lineno_impldef"),sep=":")
+
+
+## selecting only parts of the standard related to stdlib
+stdlib_chapters = c("lib-intro", "support", "diagnostics", "utilities", "strings", "locales", "containers", "iterators", "algorithms", "numerics", "iostreams", "regex", "atomics", "threads", "grammar", "limits", "compatibility", "future")
+
+stdlib_files = c("lib-intro.tex", "support.tex", "diagnostics.tex", "utilities.tex", "strings.tex", "locales.tex", "containers.tex", "iterators.tex", "algorithms.tex", "numerics.tex", "iostreams.tex", "regex.tex", "atomics.tex", "threads.tex", "grammar.tex", "limits.tex", "compatibility.tex", "future.tex")
+
+stdlib_123 = levels123 %>% filter(file_impldef %in% stdlib_files)
+glimpse(stdlib_123)
+```
+
+For now, let's start by counting the number of impldefs per chapter!
+
+``` {r num_per_file, echo=FALSE}
+
+
+n_plot = ggplot(stdlib_123,aes(file_impldef)) + 
+geom_bar() +
+xlab("stdlib chapter") +
+ylab("N(impldef)") +
+coord_flip()
+n_plot
+
+num_per_file = stdlib_123 %>% 
+    group_by(file_impldef) %>% 
+    summarize(count = n()) %>% 
+    arrange(count) %>% 
+    mutate(fname = factor(file_impldef, file_impldef))
+num_per_file
+
+sn_plot = ggplot(num_per_file,aes(x=fname,y=count)) + 
+geom_col() +
+xlab("C++17 STD library file") +
+ylab("N(impldef)") +
+coord_flip() +
+geom_text(aes(label = count, y = count+.5), hjust = "left", size =4)
+
+ggsave("impldef_by_texfile.svg",sn_plot)
+sn_plot
+
+```

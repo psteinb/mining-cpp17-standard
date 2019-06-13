@@ -1,5 +1,5 @@
 ---
-title: "Sqeazy Performance"
+title: "Mining the C++ Standard"
 output: 
     html_document:
         toc: true
@@ -8,12 +8,15 @@ output:
         highlight: tango
 ---
 
+# Preface
+
 ```{r load_libs, echo=FALSE}
 library(dplyr, warn.conflicts=FALSE)
 library(ggplot2)
 library(tidyr)
 #library(lubridate, warn.conflicts=FALSE)
 library(ggthemes)
+library(stringr)
 
 mytheme = theme_bw(base_size=20)##  + theme(
     ## ##text = element_text(family = "Decima WE", color = "grey20"),
@@ -28,10 +31,10 @@ mytheme = theme_bw(base_size=20)##  + theme(
     ## plot.title=element_text(size=18,face="bold")
 ## )
 df = read.csv("../extracting_impldef/std.csv") %>%
-  separate(content_sec0,c("prefix_sec0","stem_sec0",NA,"title_sec0",NA),sep="[\\[\\]\\{\\}]+") %>%
-  separate(content_sec1,c("prefix_sec1","stem_sec1",NA,"title_sec1",NA),sep="[\\[\\]\\{\\}]+") %>%
-  separate(content_sec2,c("prefix_sec2","stem_sec2",NA,"title_sec2",NA),sep="[\\[\\]\\{\\}]+") %>%
-  separate(content_sec3,c("prefix_sec3","stem_sec3",NA,"title_sec3",NA),sep="[\\[\\]\\{\\}]+") 
+  separate(content_sec0,c("prefix_sec0","stem_sec0",NA,"title_sec0",NA),sep="[\\[\\]\\{\\}]+", remove=F) %>%
+  separate(content_sec1,c("prefix_sec1","stem_sec1",NA,"title_sec1",NA),sep="[\\[\\]\\{\\}]+", remove=F) %>%
+  separate(content_sec2,c("prefix_sec2","stem_sec2",NA,"title_sec2",NA),sep="[\\[\\]\\{\\}]+", remove=F) %>%
+  separate(content_sec3,c("prefix_sec3","stem_sec3",NA,"title_sec3",NA),sep="[\\[\\]\\{\\}]+", remove=F) 
   
 
 levels123 = df  %>%
@@ -48,13 +51,18 @@ stdlib_chapters = c("lib-intro", "support", "diagnostics", "utilities", "strings
 
 stdlib_files = c("lib-intro.tex", "support.tex", "diagnostics.tex", "utilities.tex", "strings.tex", "locales.tex", "containers.tex", "iterators.tex", "algorithms.tex", "numerics.tex", "iostreams.tex", "regex.tex", "atomics.tex", "threads.tex", "grammar.tex", "limits.tex", "compatibility.tex", "future.tex")
 
+cat("stdlib files:\n",paste(stdlib_files))
+
 stdlib_123 = levels123 %>% filter(file_impldef %in% stdlib_files)
 glimpse(stdlib_123)
 ```
 
+# Count by tex file
+
 For now, let's start by counting the number of impldefs per chapter!
 
-``` {r num_per_file, echo=FALSE}
+
+``` {r num_per_file, echo=FALSE, fig.width=10}
 
 
 n_plot = ggplot(stdlib_123,aes(file_impldef)) + 
@@ -69,16 +77,238 @@ num_per_file = stdlib_123 %>%
     summarize(count = n()) %>% 
     arrange(count) %>% 
     mutate(fname = factor(file_impldef, file_impldef))
-num_per_file
+
 
 sn_plot = ggplot(num_per_file,aes(x=fname,y=count)) + 
-geom_col() +
-xlab("C++17 STD library file") +
-ylab("N(impldef)") +
-coord_flip() +
-geom_text(aes(label = count, y = count+.5), hjust = "left", size =4)
+             geom_col() +
+             xlab("C++17 STD library file") +
+             ylab("N (impldef)") +
+             coord_flip() +
+             geom_text(aes(label = count, y = count+.5), hjust = "left", size =6) +
+             theme(text = element_text(size=20)) 
 
-ggsave("impldef_by_texfile.svg",sn_plot)
+ggsave("impldef_by_texfile.svg",sn_plot,width=10)
 sn_plot
 
+```
+
+# Count by chapter stem
+
+Next, let's find the section stem that an impldef is contained in.
+
+``` {r prim_section_stem, echo=FALSE, fig.width=10, fig.heigth=7}
+
+#obtained with 
+#egrep 'rSec1' lib-intro.tex support.tex diagnostics.tex utilities.tex strings.tex locales.tex containers.tex iterators.tex algorithms.tex numerics.tex iostreams.tex regex.tex atomics.tex threads.tex grammar.tex limits.tex compatibility.tex future.tex|sed -e 's/.*\[\(.*\)\].*/"\1", /' | tr -d '\n'
+
+all_sec1_stems = c("library.general", "library.c", "definitions", "description", "requirements", "support.general", "support.types", "support.limits", "cstdint", "support.start.term", "support.dynamic", "support.rtti", "support.exception", "support.initlist", "support.runtime", "diagnostics.general", "std.exceptions", "assertions", "errno", "syserr", "utilities.general", "utility", "intseq", "pairs", "tuple", "optional", "variant", "any", "bitset", "memory", "smartptr", "mem.res", "allocator.adaptor", "function.objects", "meta", "ratio", "time", "type.index", "execpol", "strings.general", "char.traits", "string.classes", "string.view", "c.strings", "localization.general", "locale.syn", "locales", "locale.categories", "c.locales", "containers.general", "container.requirements", "sequences", "associative", "unord", "container.adaptors", "iterators.general", "iterator.requirements", "iterator.synopsis", "iterator.primitives", "predef.iterators", "stream.iterators", "iterator.range", "iterator.container", "algorithms.general", "algorithm.syn", "algorithms.requirements", "algorithms.parallel", "alg.nonmodifying", "alg.modifying.operations", "alg.sorting", "alg.c.library", "numerics.general", "numerics.defns", "numeric.requirements", "cfenv", "complex.numbers", "rand", "numarray", "numeric.ops", "c.math", "input.output.general", "iostreams.requirements", "iostream.forward", "iostream.objects", "iostreams.base", "stream.buffers", "iostream.format", "string.streams", "file.streams", "filesystems", "c.files", "re.general", "re.def", "re.req", "re.syn", "re.const", "re.badexp", "re.traits", "re.regex", "re.submatch", "re.results", "re.alg", "re.iter", "re.grammar", "atomics.general", "atomics.syn", "atomics.alias", "atomics.order", "atomics.lockfree", "atomics.types.generic", "atomics.nonmembers", "atomics.flag", "atomics.fences", "thread.general", "thread.req", "thread.threads", "thread.mutex", "thread.condition", "futures", "gram.key", "diff.iso", "diff.cpp03", "diff.cpp11", "diff.cpp14", "diff.library", "depr.static_constexpr", "depr.impldec", "depr.except.spec", "depr.cpp.headers", "depr.c.headers", "depr.str.strstreams", "depr.uncaught", "depr.func.adaptor.binding", "depr.default.allocator", "depr.storage.iterator", "depr.temporary.buffer", "depr.meta.types", "depr.iterator.primitives", "depr.util.smartptr.shared.obs", "depr.locale.stdcvt", "depr.conversions")
+
+n_sec1_stem = stdlib_123 %>% 
+    group_by(stem_sec1) %>% 
+    summarize(count = n()) %>% 
+    arrange(count)
+
+all_df = data.frame(stem_sec1=all_sec1_stems,count=0) %>% filter(!(stem_sec1 %in% n_sec1_stem$stem_sec1))
+
+glimpse(n_sec1_stem)
+glimpse(all_df)
+
+
+sn_plot = n_sec1_stem %>% 
+    mutate(sname = factor(stem_sec1, stem_sec1)) %>%
+    ggplot(aes(x=sname,y=count)) + 
+             geom_col() +
+             xlab("Chapter Stem") +
+             ylab("N (impldef)") +
+             coord_flip() +
+             geom_text(aes(label = count, y = count+.5), hjust = "left", size =4) +
+             theme(text = element_text(size=16)) 
+
+ggsave("impldef_by_sec1_stem.svg",sn_plot,width=10)
+sn_plot
+
+nrow(n_sec1_stem)
+nrow(n_sec1_stem %>% filter(stem_sec1 %in% levels(all_df$stem_sec1)))
+
+all_plot = n_sec1_stem %>% 
+            rbind(all_df) %>%
+            arrange(count) %>%
+            mutate(sname = factor(stem_sec1, stem_sec1)) %>%
+            ggplot(aes(x=sname,y=count)) + 
+             geom_col() +
+             xlab("Chapter Stem") +
+             ylab("N (impldef)") +
+             coord_flip() +
+             #geom_text(aes(label = count, y = count+.5), hjust = "left", size =4) +
+             theme(text = element_text(size=16)) 
+
+ggsave("impldef_by_sec1_stem.svg",all_plot,width=10)
+all_plot
+
+```
+
+# Selected chapters
+
+## unord
+
+``` {r unord, echo=FALSE, fig.width=10, fig.heigth=7}
+
+hilitd = n_sec1_stem %>% 
+    mutate(sname = factor(stem_sec1, stem_sec1), highlight_this = ifelse(stem_sec1 == "unord", 1, 0)) %>%
+    ggplot(aes(x=sname,y=count,fill=highlight_this)) + 
+             geom_col() +
+             xlab("Chapter Stem") +
+             ylab("N (impldef)") +
+             coord_flip() +
+             geom_text(aes(label = count, y = count+.5), hjust = "left", size =4) +
+             theme(text = element_text(size=16)) +
+             theme(legend.position="none")
+hilitd
+
+ggsave("impldef_by_sec1_stem_unord_hilitd.svg",all_plot,width=10)
+
+uodf = stdlib_123 %>% 
+    filter( str_detect(as.character(stem_sec1),"unord") )
+    
+unique(uodf$stem_sec1)
+unique(uodf$stem_sec2)
+```
+
+Checking the invidual impldef statements in `containers.tex` reveals, that these statements are of the type:
+
+> `For the default constructor, the number of buckets is \impldef{default number of buckets in \tcode{unordered_set}}.`
+
+## char.traits
+
+``` {r chartraits, echo=FALSE, fig.width=10, fig.heigth=7}
+
+hilitd = n_sec1_stem %>% 
+    mutate(sname = factor(stem_sec1, stem_sec1), highlight_this = ifelse(stem_sec1 == "char.traits", 1, 0)) %>%
+    ggplot(aes(x=sname,y=count,fill=highlight_this)) + 
+             geom_col() +
+             xlab("Chapter Stem") +
+             ylab("N (impldef)") +
+             coord_flip() +
+             geom_text(aes(label = count, y = count+.5), hjust = "left", size =4) +
+             theme(text = element_text(size=16)) +
+             theme(legend.position="none")
+hilitd
+ggsave("impldef_by_sec1_stem_chartraits_hilitd.svg",all_plot,width=10)
+
+ctdf = stdlib_123 %>% 
+    filter( str_detect(as.character(stem_sec1),"char.traits") )
+    
+unique(ctdf$stem_sec1)
+unique(ctdf$stem_sec2)
+unique(ctdf$file_impldef)
+
+```
+
+So checking `strings.tex` is the next step. The impldef statements here revolve around [char.traits](https://en.cppreference.com/w/cpp/string/char_traits) and how types used by these traits are defined or how Unicode can be handled.
+
+## c.math
+
+``` {r cmath, echo=FALSE, fig.width=10, fig.heigth=7}
+
+hilitd = n_sec1_stem %>% 
+    mutate(sname = factor(stem_sec1, stem_sec1), highlight_this = ifelse(stem_sec1 == "c.math", 1, 0)) %>%
+    ggplot(aes(x=sname,y=count,fill=highlight_this)) + 
+             geom_col() +
+             xlab("Chapter Stem") +
+             ylab("N (impldef)") +
+             coord_flip() +
+             geom_text(aes(label = count, y = count+.5), hjust = "left", size =4) +
+             theme(text = element_text(size=16)) +
+             theme(legend.position="none")
+hilitd
+ggsave("impldef_by_sec1_stem_cmath_hilitd.svg",all_plot,width=10)
+
+cmdf = stdlib_123 %>% 
+    filter( str_detect(as.character(stem_sec1),"c.math") )
+    
+unique(cmdf$stem_sec1)
+unique(cmdf$stem_sec2)
+unique(cmdf$file_impldef)
+cmdf[,-3:-1]
+```
+
+All of these impldef statements are contained in `numerics.tex`. Most of them revolve around [specialized math functions](https://en.cppreference.com/w/cpp/numeric/special_math) and how they handle ill-posed inputs, e.g.
+
+> `\impldef{effect of calling associated Legendre polynomials with \\tcode{l >= 128}}`
+
+## rand
+
+``` {r rand, echo=FALSE, fig.width=10, fig.heigth=7}
+
+hilitd = n_sec1_stem %>% 
+    mutate(sname = factor(stem_sec1, stem_sec1), highlight_this = ifelse(stem_sec1 == "rand", 1, 0)) %>%
+    ggplot(aes(x=sname,y=count,fill=highlight_this)) + 
+             geom_col() +
+             xlab("Chapter Stem") +
+             ylab("N (impldef)") +
+             coord_flip() +
+             geom_text(aes(label = count, y = count+.5), hjust = "left", size =4) +
+             theme(text = element_text(size=16)) +
+             theme(legend.position="none")
+hilitd
+ggsave("impldef_by_sec1_stem_cmath_hilitd.svg",all_plot,width=10)
+
+rndf = stdlib_123 %>% 
+    filter( str_detect(as.character(stem_sec1),"rand") )
+    
+unique(rndf$stem_sec1)
+unique(rndf$stem_sec2)
+unique(rndf$file_impldef)
+rndf[,-3:-1]
+```
+
+All of these impldef statements are contained in `numerics.tex`.
+
+- type of default `random_device` is impldef (so better always specify)
+- exception type when `random_device` fails to construct or doesn't work
+- how `random_device::operator()` generates values (thread-safety?)
+
+## time
+
+``` {r time, echo=FALSE, fig.width=10, fig.heigth=7}
+
+hilitd = n_sec1_stem %>% 
+    mutate(sname = factor(stem_sec1, stem_sec1), highlight_this = ifelse(stem_sec1 == "time", 1, 0)) %>%
+    ggplot(aes(x=sname,y=count,fill=highlight_this)) + 
+             geom_col() +
+             xlab("Chapter Stem") +
+             ylab("N (impldef)") +
+             coord_flip() +
+             geom_text(aes(label = count, y = count+.5), hjust = "left", size =4) +
+             theme(text = element_text(size=16)) +
+             theme(legend.position="none")
+hilitd
+ggsave("impldef_by_sec1_stem_cmath_hilitd.svg",all_plot,width=10)
+
+tdf = stdlib_123 %>% 
+    filter( str_detect(as.character(stem_sec1),"time") )
+    
+unique(tdf$stem_sec1)
+unique(tdf$stem_sec2)
+unique(tdf$file_impldef)
+tdf[,-3:-1]
+```
+
+All 2 hits are inside `time.tex`. **C-style times** considered harmful!
+
+> `It is \\impldef{whether values are rounded or truncated to the required precision when converting between \\tcode{time_t}`
+
+## Misc finds
+
+- The return value of `std::pow(0.,0.)` is impldef! (numerics.tex:1199)
+
+- often find exception types are impldef
+
+``` {r exctype, echo=FALSE, fig.width=10, fig.heigth=7}
+
+etdf = stdlib_123 %>% 
+    filter( str_detect(content_impldef,"exception"))
+    
+glimpse(etdf)
+etdf[,-3:-1]
 ```
